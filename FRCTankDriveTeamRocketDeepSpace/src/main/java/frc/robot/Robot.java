@@ -10,7 +10,9 @@ package frc.robot;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
+import edu.wpi.first.wpilibj.Spark;
 
 
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -35,23 +37,27 @@ public class Robot extends TimedRobot {
   private Joystick gamepad2;
   DoubleSolenoid exampleDouble = new DoubleSolenoid(0, 1);
   DoubleSolenoid exampleDouble2 = new DoubleSolenoid(2, 3);
-  WPI_TalonSRX   collector= new WPI_TalonSRX(7);
+  SpeedController   collector= new Spark(8);
+  WPI_TalonSRX   hatcharm= new WPI_TalonSRX(7);
   WPI_TalonSRX   roboarm = new WPI_TalonSRX(10);
 
 
-  
 
   @Override
   public void robotInit() {
-    m_myRobot = new DifferentialDrive(new WPI_TalonSRX(1), new WPI_TalonSRX(4));
+    m_myRobot = new DifferentialDrive(new WPI_TalonSRX(4), new WPI_TalonSRX(1));
     gamepad1 = new Joystick(0);
     gamepad2 = new Joystick(1);
     
 		/* Factory default hardware to prevent unexpected behavior */
-		roboarm.configFactoryDefault();
+    roboarm.configFactoryDefault();
+    hatcharm.configFactoryDefault();
 
 		/* Configure Sensor Source for Pirmary PID */
 		roboarm.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative,
+											Constants.kPIDLoopIdx, 
+                      Constants.kTimeoutMs);
+    hatcharm.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative,
 											Constants.kPIDLoopIdx, 
 											Constants.kTimeoutMs);
 
@@ -61,33 +67,58 @@ public class Robot extends TimedRobot {
 		 * Phase sensor to have positive increment when driving Talon Forward (Green LED)
 		 */
 		roboarm.setSensorPhase(false);
-		roboarm.setInverted(true);
+    roboarm.setInverted(true);
+    hatcharm.setSensorPhase(false);
+		hatcharm.setInverted(true);
 
 		/* Set relevant frame periods to be at least as fast as periodic rate */
 		roboarm.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, 10, Constants.kTimeoutMs);
-		roboarm.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, 10, Constants.kTimeoutMs);
+    roboarm.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, 10, Constants.kTimeoutMs);
+    hatcharm.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, 10, Constants.kTimeoutMs);
+		hatcharm.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, 10, Constants.kTimeoutMs);
 
 		/* Set the peak and nominal outputs */
 		roboarm.configNominalOutputForward(0, Constants.kTimeoutMs);
 		roboarm.configNominalOutputReverse(0, Constants.kTimeoutMs);
 		roboarm.configPeakOutputForward(1, Constants.kTimeoutMs);
-		roboarm.configPeakOutputReverse(-1, Constants.kTimeoutMs);
+    roboarm.configPeakOutputReverse(-1, Constants.kTimeoutMs);
+    hatcharm.configNominalOutputForward(0, Constants.kTimeoutMs);
+		hatcharm.configNominalOutputReverse(0, Constants.kTimeoutMs);
+		hatcharm.configPeakOutputForward(1, Constants.kTimeoutMs);
+		hatcharm.configPeakOutputReverse(-1, Constants.kTimeoutMs);
 
 		/* Set Motion Magic gains in slot0 - see documentation */
 		roboarm.selectProfileSlot(Constants.kSlotIdx, Constants.kPIDLoopIdx);
 		roboarm.config_kF(Constants.kSlotIdx, Constants.kGains.kF, Constants.kTimeoutMs);
 		roboarm.config_kP(Constants.kSlotIdx, Constants.kGains.kP, Constants.kTimeoutMs);
 		roboarm.config_kI(Constants.kSlotIdx, Constants.kGains.kI, Constants.kTimeoutMs);
-		roboarm.config_kD(Constants.kSlotIdx, Constants.kGains.kD, Constants.kTimeoutMs);
+    roboarm.config_kD(Constants.kSlotIdx, Constants.kGains.kD, Constants.kTimeoutMs);
+    hatcharm.selectProfileSlot(Constants.kSlotIdx, Constants.kPIDLoopIdx);
+		hatcharm.config_kF(Constants.kSlotIdx, Constants.kGains.kF, Constants.kTimeoutMs);
+		hatcharm.config_kP(Constants.kSlotIdx, Constants.kGains.kP, Constants.kTimeoutMs);
+		hatcharm.config_kI(Constants.kSlotIdx, Constants.kGains.kI, Constants.kTimeoutMs);
+		hatcharm.config_kD(Constants.kSlotIdx, Constants.kGains.kD, Constants.kTimeoutMs);
 
 		/* Set acceleration and vcruise velocity - see documentation */
 		roboarm.configMotionCruiseVelocity(15000, Constants.kTimeoutMs);
-		roboarm.configMotionAcceleration(6000, Constants.kTimeoutMs);
+    roboarm.configMotionAcceleration(6000, Constants.kTimeoutMs);
+    hatcharm.configMotionCruiseVelocity(15000, Constants.kTimeoutMs);
+		hatcharm.configMotionAcceleration(6000, Constants.kTimeoutMs);
+
 
 		/* Zero the sensor */
-		roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+    roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+    hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
 
   }
+  public void teleopInit() {
+    		/* Zero the sensor */
+        roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+        hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+  }
+
+  double targetPosArm = 0;
+  double targetPosHatch = 0;
 
   @Override
   public void teleopPeriodic() {
@@ -103,14 +134,14 @@ public class Robot extends TimedRobot {
       exampleDouble.set(DoubleSolenoid.Value.kOff);
     }
     if (get1x()) {
-      exampleDouble.set(DoubleSolenoid.Value.kForward);
+      //exampleDouble.set(DoubleSolenoid.Value.kForward);
     }
     if (get1y()) {
-      exampleDouble.set(DoubleSolenoid.Value.kReverse);
+      //exampleDouble.set(DoubleSolenoid.Value.kReverse);
     }
     if (!get1x() && !get1y())
     {
-      exampleDouble.set(DoubleSolenoid.Value.kOff);
+      //exampleDouble.set(DoubleSolenoid.Value.kOff);
     }
     if (get1leftbumper())
     {
@@ -126,26 +157,30 @@ public class Robot extends TimedRobot {
     }
     if(get1lefttrigger())
     {
-      roboarm.set(1);
+      targetPosHatch = 0;
+      //roboarm.set(1);
     }
     if(get1righttrigger())
     {
-      roboarm.set(-1);
+      targetPosHatch = 4096. *0.250;
+     // roboarm.set(-1);
     }
     if(!get1righttrigger() && !get1lefttrigger())
     {
-      roboarm.set(0);
+      //roboarm.set(0);
     }
-    if(get2a()) {
-      double targetPos = 4096 *0.50;
-			roboarm.set(ControlMode.MotionMagic, targetPos);
+    if(get1x()) {
+       targetPosArm = 4096. *0.750;
+
     }
-    if(get2b()) {
-      double targetPos = 4096 * 0;
-			roboarm.set(ControlMode.MotionMagic, targetPos);
+    if(get1y()) {
+       targetPosArm = 4096. * 0;
+			//roboarm.set(ControlMode.MotionMagic, targetPos);
     }
+    roboarm.set(ControlMode.MotionMagic, targetPosArm);
+    hatcharm.set(ControlMode.MotionMagic, targetPosHatch);
     double armEncPos = roboarm.getSelectedSensorPosition();
-    double collectorPos = roboarm.getSelectedSensorPosition();
+    double collectorPos = hatcharm.getSelectedSensorPosition();
     SmartDashboard.putNumber("arm encoder",armEncPos);
     SmartDashboard.putNumber("collector encoder",collectorPos);
    
@@ -175,13 +210,13 @@ public class Robot extends TimedRobot {
     return false;	
   }
   public boolean get1a() {
-    return (gamepad1.getRawButton(2));
+    return (gamepad1.getRawButton(1));
   }
   public boolean get1b() {
-    return (gamepad1.getRawButton(3));
+    return (gamepad1.getRawButton(2));
   }
   public boolean get1x() {
-    return (gamepad1.getRawButton(1));
+    return (gamepad1.getRawButton(3));
   }
   public boolean get1y() {
     return (gamepad1.getRawButton(4));
@@ -208,13 +243,13 @@ public class Robot extends TimedRobot {
     return false;	
   }
   public boolean get2a() {
-    return (gamepad2.getRawButton(2));
+    return (gamepad2.getRawButton(1));
   }
   public boolean get2b() {
-    return (gamepad2.getRawButton(3));
+    return (gamepad2.getRawButton(2));
   }
   public boolean get2x() {
-    return (gamepad2.getRawButton(1));
+    return (gamepad2.getRawButton(3));
   }
   public boolean get2y() {
     return (gamepad2.getRawButton(4));
