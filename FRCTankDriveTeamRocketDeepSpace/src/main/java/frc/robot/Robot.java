@@ -94,10 +94,10 @@ public class Robot extends TimedRobot {
 		roboarm.config_kI(Constants.kSlotIdx, Constants.kGains.kI, Constants.kTimeoutMs);
     roboarm.config_kD(Constants.kSlotIdx, Constants.kGains.kD, Constants.kTimeoutMs);
     hatcharm.selectProfileSlot(Constants.kSlotIdx, Constants.kPIDLoopIdx);
-		hatcharm.config_kF(Constants.kSlotIdx, Constants.kGains.kF, Constants.kTimeoutMs);
-		hatcharm.config_kP(Constants.kSlotIdx, Constants.kGains.kP, Constants.kTimeoutMs);
-		hatcharm.config_kI(Constants.kSlotIdx, Constants.kGains.kI, Constants.kTimeoutMs);
-		hatcharm.config_kD(Constants.kSlotIdx, Constants.kGains.kD, Constants.kTimeoutMs);
+		hatcharm.config_kF(Constants.kSlotIdx, Constants.hatchGains.kF, Constants.kTimeoutMs);
+		hatcharm.config_kP(Constants.kSlotIdx, Constants.hatchGains.kP, Constants.kTimeoutMs);
+		hatcharm.config_kI(Constants.kSlotIdx, Constants.hatchGains.kI, Constants.kTimeoutMs);
+		hatcharm.config_kD(Constants.kSlotIdx, Constants.hatchGains.kD, Constants.kTimeoutMs);
 
 		/* Set acceleration and vcruise velocity - see documentation */
 		roboarm.configMotionCruiseVelocity(15000, Constants.kTimeoutMs);
@@ -111,6 +111,7 @@ public class Robot extends TimedRobot {
     hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
 
   }
+  @Override
   public void teleopInit() {
     		/* Zero the sensor */
         roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
@@ -176,6 +177,15 @@ public class Robot extends TimedRobot {
     if(get1y()) {
        targetPosArm = 4096. * 0;
 			//roboarm.set(ControlMode.MotionMagic, targetPos);
+    }
+    if(gamepad1.getPOV() == 270) {
+      targetPosArm = 4096. *0.0;
+    } else if (gamepad1.getPOV() == 0){ 
+      targetPosArm = 4096. *0.250;
+    } else if (gamepad1.getPOV() == 90){ 
+      targetPosArm = 4096. * 0.65;
+    }  else if (gamepad1.getPOV() == 180){ 
+      targetPosHatch = 4096. *1.4;
     }
     roboarm.set(ControlMode.MotionMagic, targetPosArm);
     hatcharm.set(ControlMode.MotionMagic, targetPosHatch);
