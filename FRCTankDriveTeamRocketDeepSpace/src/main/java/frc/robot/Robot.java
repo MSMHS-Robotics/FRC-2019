@@ -15,7 +15,7 @@ import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Spark;
 import edu.wpi.cscore.UsbCamera;
-import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.cscore.VideoSink;
 import edu.wpi.cscore.VideoSource;
 
@@ -53,8 +53,9 @@ public class Robot extends TimedRobot {
   UsbCamera camera1;
   UsbCamera camera2;
   VideoSink server;  
-  boolean prevTrigger = false;
+  //boolean prevTrigger = false;
 
+  boolean forwardIsBackwards = false;
 
   @Override
   public void robotInit() {
@@ -128,26 +129,26 @@ public class Robot extends TimedRobot {
 		/* Zero the sensor */
     roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
-
+/*
     UsbCamera camera1 = CameraServer.getInstance().startAutomaticCapture(); //front or back camera?
     camera1.setResolution(320, 240);
     camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
+*/
 
-/*
-    camera1.setResolution(320, 240);
-camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
 
     camera1 = CameraServer.getInstance().startAutomaticCapture(0);
+    camera1.setResolution(320, 240);
+    camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
+
+    camera2 = CameraServer.getInstance().startAutomaticCapture(1);
     camera2.setResolution(320, 240);
     camera2.setFPS(20); //cannot go higher or it uses too much bandwidth!
-    
-    camera2 = CameraServer.getInstance().startAutomaticCapture(1);
  
-    server = CameraServer.getInstance().addServer("Switched camera");
+    server = CameraServer.getInstance().addSwitchedCamera("Switched Camera");
     camera1.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
     camera2.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
 
-  */
+  
   }
   @Override
   public void teleopInit() {
@@ -163,7 +164,12 @@ camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
 
   @Override
   public void teleopPeriodic() {
-    m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5));
+    if (forwardIsBackwards) {
+      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5), gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1));
+    } else {
+      m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5));
+    }
+
     if (get1a()) {
       exampleDouble.set(DoubleSolenoid.Value.kForward);
     }
@@ -230,10 +236,10 @@ camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
     } else if (gamepad1.getPOV() == 0){ 
       targetPosArm = -4096. *0.20;
     } else if (gamepad1.getPOV() == 90){ 
-      targetPosArm = -4096. * 0.75;
+      targetPosArm = -4096. * 0.8;
     }  else if (gamepad1.getPOV() == 180){ 
       // NOTE: this is hatch not arm
-      targetPosHatch = 3400; //4096. *1.4;
+      targetPosHatch = 3600; //4096. *1.4;
     }
     if (resetArm && armLimit.get()) {
       roboarm.set(ControlMode.PercentOutput, 0.2);
@@ -254,6 +260,11 @@ camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
     SmartDashboard.putNumber("hatch encoder",collectorPos);
     SmartDashboard.putBoolean("reseting hatch", resetHatch);
     SmartDashboard.putBoolean("reseting arm", resetArm);
+    SmartDashboard.putBoolean("forward is Backwards",forwardIsBackwards);
+    SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
+    SmartDashboard.putBoolean("arm limit", !armLimit.get());
+    SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
+
 
     if (resetHatch && hatchLimit.get()) {
       hatcharm.set(ControlMode.PercentOutput, -0.4);
@@ -270,7 +281,7 @@ camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
     }
 
     // camera switching
-    /*
+    
     if (get2leftbumper()) {
       System.out.println("Setting camera 2");
       server.setSource(camera2);
@@ -279,7 +290,13 @@ camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
       System.out.println("Setting camera 1");
       server.setSource(camera1);
     }
-    */
+    // driver direction switching
+    if (get2lefttrigger()) {
+      forwardIsBackwards = false;
+    }
+    if (get2righttrigger()) {
+      forwardIsBackwards = true;
+    }
 
   }
   
