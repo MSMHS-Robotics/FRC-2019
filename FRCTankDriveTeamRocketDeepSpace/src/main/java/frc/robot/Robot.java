@@ -11,9 +11,15 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.SpeedController;
+import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Spark;
+import edu.wpi.cscore.UsbCamera;
+import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.cscore.VideoSink;
+import edu.wpi.cscore.VideoSource;
 
+import edu.wpi.first.wpilibj.DigitalInput;
 
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
@@ -38,14 +44,27 @@ public class Robot extends TimedRobot {
   DoubleSolenoid exampleDouble = new DoubleSolenoid(0, 1);
   DoubleSolenoid exampleDouble2 = new DoubleSolenoid(2, 3);
   SpeedController   collector= new Spark(8);
+  SpeedController   hatchHook= new Spark(0);
   WPI_TalonSRX   hatcharm= new WPI_TalonSRX(7);
   WPI_TalonSRX   roboarm = new WPI_TalonSRX(10);
+  DigitalInput armLimit = new DigitalInput(0);
+  DigitalInput hatchLimit = new DigitalInput(1);
 
+  UsbCamera camera1;
+  UsbCamera camera2;
+  VideoSink server;  
+  boolean prevTrigger = false;
 
 
   @Override
   public void robotInit() {
-    m_myRobot = new DifferentialDrive(new WPI_TalonSRX(4), new WPI_TalonSRX(1));
+    WPI_TalonSRX m_rightfront = new WPI_TalonSRX(4);
+    WPI_TalonSRX m_rightrear = new WPI_TalonSRX(3);
+    SpeedControllerGroup m_right = new SpeedControllerGroup(m_rightfront,  m_rightrear);
+    WPI_TalonSRX m_leftfront = new WPI_TalonSRX(2);
+    WPI_TalonSRX m_leftrear = new WPI_TalonSRX(1);
+    SpeedControllerGroup m_left = new SpeedControllerGroup(m_leftfront,  m_leftrear);
+    m_myRobot = new DifferentialDrive(m_right, m_left);
     gamepad1 = new Joystick(0);
     gamepad2 = new Joystick(1);
     
@@ -110,6 +129,25 @@ public class Robot extends TimedRobot {
     roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
 
+    UsbCamera camera1 = CameraServer.getInstance().startAutomaticCapture(); //front or back camera?
+    camera1.setResolution(320, 240);
+    camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
+
+/*
+    camera1.setResolution(320, 240);
+camera1.setFPS(20); //cannot go higher or it uses too much bandwidth!
+
+    camera1 = CameraServer.getInstance().startAutomaticCapture(0);
+    camera2.setResolution(320, 240);
+    camera2.setFPS(20); //cannot go higher or it uses too much bandwidth!
+    
+    camera2 = CameraServer.getInstance().startAutomaticCapture(1);
+ 
+    server = CameraServer.getInstance().addServer("Switched camera");
+    camera1.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
+    camera2.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
+
+  */
   }
   @Override
   public void teleopInit() {
@@ -120,10 +158,12 @@ public class Robot extends TimedRobot {
 
   double targetPosArm = 0;
   double targetPosHatch = 0;
+  boolean resetArm = false;
+  boolean resetHatch =false;
 
   @Override
   public void teleopPeriodic() {
-    m_myRobot.tankDrive(-gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5));
+    m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5));
     if (get1a()) {
       exampleDouble.set(DoubleSolenoid.Value.kForward);
     }
@@ -135,14 +175,14 @@ public class Robot extends TimedRobot {
       exampleDouble.set(DoubleSolenoid.Value.kOff);
     }
     if (get1x()) {
-      //exampleDouble.set(DoubleSolenoid.Value.kForward);
+      hatchHook.set(1);
     }
     if (get1y()) {
-      //exampleDouble.set(DoubleSolenoid.Value.kReverse);
+     hatchHook.set(-1);
     }
     if (!get1x() && !get1y())
     {
-      //exampleDouble.set(DoubleSolenoid.Value.kOff);
+     hatchHook.set(0);
     }
     if (get1leftbumper())
     {
@@ -170,32 +210,76 @@ public class Robot extends TimedRobot {
     {
       //roboarm.set(0);
     }
-    if(get1x()) {
-       targetPosArm = 4096. *0.750;
+    if(get2x()) {
+      resetHatch = true;
 
     }
-    if(get1y()) {
-       targetPosArm = 4096. * 0;
-			//roboarm.set(ControlMode.MotionMagic, targetPos);
+    if (get2a()) {
+      resetHatch = false;
+    }
+    if(get2y()) {
+      // targetPosArm = 4096. * 0;
+      //roboarm.set(ControlMode.MotionMagic, targetPos);
+      resetArm = true;
+    }
+    if (get2b()) {
+      resetArm = false;
     }
     if(gamepad1.getPOV() == 270) {
-      targetPosArm = 4096. *0.0;
+      targetPosArm = -4096. *0.0;
     } else if (gamepad1.getPOV() == 0){ 
-      targetPosArm = 4096. *0.250;
+      targetPosArm = -4096. *0.20;
     } else if (gamepad1.getPOV() == 90){ 
-      targetPosArm = 4096. * 0.65;
+      targetPosArm = -4096. * 0.75;
     }  else if (gamepad1.getPOV() == 180){ 
-      targetPosHatch = 4096. *1.4;
+      // NOTE: this is hatch not arm
+      targetPosHatch = 3400; //4096. *1.4;
     }
-    roboarm.set(ControlMode.MotionMagic, targetPosArm);
-    hatcharm.set(ControlMode.MotionMagic, targetPosHatch);
+    if (resetArm && armLimit.get()) {
+      roboarm.set(ControlMode.PercentOutput, 0.2);
+    } else {
+      if (!resetArm) {
+        roboarm.set(ControlMode.MotionMagic, targetPosArm);
+      }
+    }
+    if ( !armLimit.get()) {
+      resetArm = false;
+      targetPosArm = 0;
+      roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+    }
+
     double armEncPos = roboarm.getSelectedSensorPosition();
     double collectorPos = hatcharm.getSelectedSensorPosition();
     SmartDashboard.putNumber("arm encoder",armEncPos);
-    SmartDashboard.putNumber("collector encoder",collectorPos);
-   
+    SmartDashboard.putNumber("hatch encoder",collectorPos);
+    SmartDashboard.putBoolean("reseting hatch", resetHatch);
+    SmartDashboard.putBoolean("reseting arm", resetArm);
 
+    if (resetHatch && hatchLimit.get()) {
+      hatcharm.set(ControlMode.PercentOutput, -0.4);
+    } else {
+      if (!resetHatch) {
+        hatcharm.set(ControlMode.MotionMagic, targetPosHatch); 
+      }
+    }
 
+    if (!hatchLimit.get()) {
+      resetHatch = false;
+      targetPosHatch = 0;
+      hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+    }
+
+    // camera switching
+    /*
+    if (get2leftbumper()) {
+      System.out.println("Setting camera 2");
+      server.setSource(camera2);
+    }
+    if (get2rightbumper()) {
+      System.out.println("Setting camera 1");
+      server.setSource(camera1);
+    }
+    */
 
   }
   
@@ -242,7 +326,7 @@ public class Robot extends TimedRobot {
     return (gamepad2.getRawButton(6)); // right bumper
   }
   public boolean get2leftbumper() {
-    return (gamepad1.getRawButton(5)); // left bumper
+    return (gamepad2.getRawButton(5)); // left bumper
   }
   public boolean get2lefttrigger() {
     if (gamepad2.getRawAxis(2) > 0.5) { return true; }
