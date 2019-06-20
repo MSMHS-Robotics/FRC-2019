@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Spark;
+import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.cscore.VideoSink;
@@ -49,6 +50,7 @@ public class Robot extends TimedRobot {
   WPI_TalonSRX   roboarm = new WPI_TalonSRX(10);
   DigitalInput armLimit = new DigitalInput(0);
   DigitalInput hatchLimit = new DigitalInput(1);
+  WPI_TalonSRX hab2lift = new WPI_TalonSRX(5);
 
   UsbCamera camera1;
   UsbCamera camera2;
@@ -56,9 +58,12 @@ public class Robot extends TimedRobot {
   //boolean prevTrigger = false;
 
   boolean forwardIsBackwards = false;
+  boolean hatchEjectOut = false;
 
   @Override
   public void robotInit() {
+
+    // left and right drivetrain groups for controllers
     WPI_TalonSRX m_rightfront = new WPI_TalonSRX(4);
     WPI_TalonSRX m_rightrear = new WPI_TalonSRX(3);
     SpeedControllerGroup m_right = new SpeedControllerGroup(m_rightfront,  m_rightrear);
@@ -66,9 +71,20 @@ public class Robot extends TimedRobot {
     WPI_TalonSRX m_leftrear = new WPI_TalonSRX(1);
     SpeedControllerGroup m_left = new SpeedControllerGroup(m_leftfront,  m_leftrear);
     m_myRobot = new DifferentialDrive(m_right, m_left);
+
+    // joysticks - gamepads
     gamepad1 = new Joystick(0);
     gamepad2 = new Joystick(1);
     
+    // compressor
+    //Compressor c = new Compressor(0);
+    //c.setClosedLoopControl(true);  // turn it on
+    //c.setClosedLoopControl(false); // turn it off
+    //examples to get the compressor state:
+    //boolean enabled = c.enabled();
+    //boolean pressureSwitch = c.getPressureSwitchValue();
+    //double current = c.getCompressorCurrent();
+
 		/* Factory default hardware to prevent unexpected behavior */
     roboarm.configFactoryDefault();
     hatcharm.configFactoryDefault();
@@ -165,17 +181,26 @@ public class Robot extends TimedRobot {
   @Override
 
   public void autonomousPeriodic() {
+    //Slow Speed for lining up
+    double speed = 1.0;
+    if (get2leftbumper()) {
+      speed = 0.55;
+    }
     if (forwardIsBackwards) {
-      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5), gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1));
+      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed,
+       gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed);
     } else {
-      m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5));
+      m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
+       -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
     }
 
     if (get1a()) {
       exampleDouble.set(DoubleSolenoid.Value.kForward);
+      hatchEjectOut = true;
     }
     if (get1b()) {
       exampleDouble.set(DoubleSolenoid.Value.kReverse);
+      hatchEjectOut = true;
     }
     if (!get1a() && !get1b())
     {
@@ -210,7 +235,8 @@ public class Robot extends TimedRobot {
     }
     if(get1righttrigger())
     {
-      targetPosHatch = 4096. *0.250;
+      targetPosHatch = 4096. *0.250;//comp bot
+      //targetPosHatch = 4096. *0.350;//practice bot
      // roboarm.set(-1);
     }
     if(!get1righttrigger() && !get1lefttrigger())
@@ -232,20 +258,23 @@ public class Robot extends TimedRobot {
     if (get2b()) {
       resetArm = false;
     }
-    if(gamepad1.getPOV() == 270) {
-      targetPosArm = -4096. *0.0;
-    } else if (gamepad1.getPOV() == 0){ 
-      targetPosArm = -4096. *0.20;
-    }else if (gamepad1.getPOV()==45){
+    if(gamepad2.getPOV() == 90){
       targetPosArm = -4096. *0.4;
-    }else if (gamepad1.getPOV() == 90){ 
+    }
+    if(gamepad1.getPOV() == 270) {  // parked
+      targetPosArm = -4096. *0.0;
+    } else if (gamepad1.getPOV() == 0){  // shooting cargo ship
+      targetPosArm = -4096. *0.20;
+    //}else if (gamepad1.getPOV()==45){ // shooting rocket
+    //  targetPosArm = -4096. *0.4;
+    }else if (gamepad1.getPOV() == 90){ // pickup from floor
       targetPosArm = -4096. * 0.8;
     }  else if (gamepad1.getPOV() == 180){ 
       // NOTE: this is hatch not arm
-      targetPosHatch = 3600; //4096. *1.4;
+      targetPosHatch = 4300; //4096. *1.4;
     }
     if (resetArm && armLimit.get()) {
-      roboarm.set(ControlMode.PercentOutput, 0.2);
+      roboarm.set(ControlMode.PercentOutput, 0.4);
     } else {
       if (!resetArm) {
         roboarm.set(ControlMode.MotionMagic, targetPosArm);
@@ -256,18 +285,6 @@ public class Robot extends TimedRobot {
       targetPosArm = 0;
       roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     }
-
-    double armEncPos = roboarm.getSelectedSensorPosition();
-    double collectorPos = hatcharm.getSelectedSensorPosition();
-    SmartDashboard.putNumber("arm encoder",armEncPos);
-    SmartDashboard.putNumber("hatch encoder",collectorPos);
-    SmartDashboard.putBoolean("reseting hatch", resetHatch);
-    SmartDashboard.putBoolean("reseting arm", resetArm);
-    SmartDashboard.putBoolean("forward is Backwards",forwardIsBackwards);
-    SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
-    SmartDashboard.putBoolean("arm limit", !armLimit.get());
-    SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
-
 
     if (resetHatch && hatchLimit.get()) {
       hatcharm.set(ControlMode.PercentOutput, -0.4);
@@ -282,40 +299,71 @@ public class Robot extends TimedRobot {
       targetPosHatch = 0;
       hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     }
-
-    // camera switching
     
-    if (get2leftbumper()) {
-      System.out.println("Setting camera 2");
-      server.setSource(camera2);
-    }
-    if (get2rightbumper()) {
-      System.out.println("Setting camera 1");
-      server.setSource(camera1);
-    }
-    // driver direction switching
-    if (get2lefttrigger()) {
-      forwardIsBackwards = false;
-    }
-    if (get2righttrigger()) {
-      forwardIsBackwards = true;
-    }
+    double armEncPos = roboarm.getSelectedSensorPosition();
+    double collectorPos = hatcharm.getSelectedSensorPosition();
+    SmartDashboard.putNumber("arm encoder",armEncPos);
+    SmartDashboard.putNumber("hatch encoder",collectorPos);
+    SmartDashboard.putBoolean("reseting hatch", resetHatch);
+    SmartDashboard.putBoolean("reseting arm", resetArm);
+    SmartDashboard.putBoolean("forward is Backwards",forwardIsBackwards);
+    SmartDashboard.putBoolean("HatchEject", hatchEjectOut);
+    SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
+    SmartDashboard.putBoolean("arm limit", !armLimit.get());
+    SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
 
+    
+    if (get2rightbumper()) {
+     
+    }
+    // hab2boost
+    if (get2lefttriggervalue()>0.2) {
+      //forwardIsBackwards = false;
+      hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
+
+    }
+    if (get2righttriggervalue()>0.2) {
+     // forwardIsBackwards = true;
+     hab2lift.set(ControlMode.PercentOutput,-get2righttriggervalue());
+
+    }
+    if (get2righttriggervalue() <= 0.2 && get2lefttriggervalue() <= 0.2) {
+      hab2lift.set(ControlMode.PercentOutput,0.0);
+    }
+    // Hab 2 override
+    double yvalue = get2RightY();
+    if (gamepad2.getPOV() == 180 && Math.abs(yvalue) > 0.1) {
+      hatcharm.set(ControlMode.PercentOutput, yvalue);
+    }
+    // Arm override
+    double yvalue2 = get2LeftY();
+    if (gamepad2.getPOV() == 0 && Math.abs(yvalue2) > 0.1) {
+      roboarm.set(ControlMode.PercentOutput, yvalue2);
+    }
 
   }
 
   public void teleopPeriodic() {
+    //Slow Speed for lining up
+    double speed = 1.0;
+    if (get2leftbumper()) {
+      speed = 0.55;
+    }
     if (forwardIsBackwards) {
-      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5), gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1));
+      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed,
+       gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed);
     } else {
-      m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1), -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5));
+      m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
+       -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
     }
 
     if (get1a()) {
       exampleDouble.set(DoubleSolenoid.Value.kForward);
+      hatchEjectOut = true;
     }
     if (get1b()) {
       exampleDouble.set(DoubleSolenoid.Value.kReverse);
+      hatchEjectOut = false;
     }
     if (!get1a() && !get1b())
     {
@@ -350,7 +398,8 @@ public class Robot extends TimedRobot {
     }
     if(get1righttrigger())
     {
-      targetPosHatch = 4096. *0.250;
+      targetPosHatch = 4096. *0.250;//comp bot
+      //targetPosHatch = 4096. *0.350;//practice bot
      // roboarm.set(-1);
     }
     if(!get1righttrigger() && !get1lefttrigger())
@@ -372,19 +421,26 @@ public class Robot extends TimedRobot {
     if (get2b()) {
       resetArm = false;
     }
-    if(gamepad1.getPOV() == 270) {
+    if(gamepad2.getPOV() == 90){
+      targetPosArm = -4096. *0.5;
+    }
+    if(gamepad1.getPOV() == 270) {  // parked
       targetPosArm = -4096. *0.0;
-    } else if (gamepad1.getPOV() == 0){ 
+    } else if (gamepad1.getPOV() == 0){  // shooting cargo ship
       targetPosArm = -4096. *0.20;
-    } else if (gamepad1.getPOV() == 90){ 
+    //}else if (gamepad1.getPOV()==45){ // shooting rocket
+     // targetPosArm = -4096. *0.4;
+    }else if (gamepad1.getPOV() == 90){ // pickup from floor
       targetPosArm = -4096. * 0.8;
     }  else if (gamepad1.getPOV() == 180){ 
       // NOTE: this is hatch not arm
-      targetPosHatch = 4000; //4096. *1.4;
+      targetPosHatch = 4300; //4096. *1.4;
     }
+    //reset arm
     if (resetArm && armLimit.get()) {
-      roboarm.set(ControlMode.PercentOutput, 0.2);
+      roboarm.set(ControlMode.PercentOutput, 0.4);
     } else {
+      //if not reseting, hold at exact position
       if (!resetArm) {
         roboarm.set(ControlMode.MotionMagic, targetPosArm);
       }
@@ -394,18 +450,6 @@ public class Robot extends TimedRobot {
       targetPosArm = 0;
       roboarm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     }
-
-    double armEncPos = roboarm.getSelectedSensorPosition();
-    double collectorPos = hatcharm.getSelectedSensorPosition();
-    SmartDashboard.putNumber("arm encoder",armEncPos);
-    SmartDashboard.putNumber("hatch encoder",collectorPos);
-    SmartDashboard.putBoolean("reseting hatch", resetHatch);
-    SmartDashboard.putBoolean("reseting arm", resetArm);
-    SmartDashboard.putBoolean("forward is Backwards",forwardIsBackwards);
-    SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
-    SmartDashboard.putBoolean("arm limit", !armLimit.get());
-    SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
-
 
     if (resetHatch && hatchLimit.get()) {
       hatcharm.set(ControlMode.PercentOutput, -0.4);
@@ -420,24 +464,35 @@ public class Robot extends TimedRobot {
       targetPosHatch = 0;
       hatcharm.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
     }
-
-
-    // camera switching
     
-    if (get2leftbumper()) {
-      System.out.println("Setting camera 2");
-      server.setSource(camera2);
-    }
+    double armEncPos = roboarm.getSelectedSensorPosition();
+    double collectorPos = hatcharm.getSelectedSensorPosition();
+    SmartDashboard.putNumber("arm encoder",armEncPos);
+    SmartDashboard.putNumber("hatch encoder",collectorPos);
+    SmartDashboard.putBoolean("reseting hatch", resetHatch);
+    SmartDashboard.putBoolean("reseting arm", resetArm);
+    SmartDashboard.putBoolean("forward is Backwards",forwardIsBackwards);
+    SmartDashboard.putBoolean("HatchEject", hatchEjectOut);
+    SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
+    SmartDashboard.putBoolean("arm limit", !armLimit.get());
+    SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
+
     if (get2rightbumper()) {
-      System.out.println("Setting camera 1");
-      server.setSource(camera1);
+    
     }
-    // driver direction switching
-    if (get2lefttrigger()) {
-      forwardIsBackwards = false;
+    // hab2boost
+    if (get2lefttriggervalue()>0.2) {
+      //forwardIsBackwards = false;
+      hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
+
     }
-    if (get2righttrigger()) {
-      forwardIsBackwards = true;
+    if (get2righttriggervalue()>0.2) {
+     // forwardIsBackwards = true;
+     hab2lift.set(ControlMode.PercentOutput,-get2righttriggervalue());
+
+    }
+    if (get2righttriggervalue() <= 0.2 && get2lefttriggervalue() <= 0.2) {
+      hab2lift.set(ControlMode.PercentOutput,0.0);
     }
 
     // Hab 2 override
@@ -445,11 +500,11 @@ public class Robot extends TimedRobot {
     if (gamepad2.getPOV() == 180 && Math.abs(yvalue) > 0.1) {
       hatcharm.set(ControlMode.PercentOutput, yvalue);
     }
-
-    double yvalue2 = get2RightY();
-    if (gamepad2.getPOV() == 0 && Math.abs(yvalue2) > 0.1) {
-      roboarm.set(ControlMode.PercentOutput, yvalue2);
-    }
+    // Arm override
+//    double yvalue2 = get2LeftY();
+//    if (gamepad2.getPOV() == 0 && Math.abs(yvalue2) > 0.1) {
+//      roboarm.set(ControlMode.PercentOutput, yvalue2);
+ //   }
 
   }
   
@@ -505,6 +560,12 @@ public class Robot extends TimedRobot {
   public boolean get2righttrigger() {
     if (gamepad2.getRawAxis(3) > 0.5) { return true; }
     return false;	
+  }
+  public double get2righttriggervalue() {
+    return gamepad2.getRawAxis(3);	
+  }
+  public double get2lefttriggervalue() {
+    return gamepad2.getRawAxis(2);	
   }
   public boolean get2a() {
     return (gamepad2.getRawButton(1));
