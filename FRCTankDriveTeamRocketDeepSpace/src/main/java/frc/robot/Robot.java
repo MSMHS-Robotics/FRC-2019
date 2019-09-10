@@ -10,6 +10,7 @@ package frc.robot;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
@@ -17,6 +18,7 @@ import edu.wpi.first.wpilibj.Spark;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
+
 import edu.wpi.cscore.VideoSink;
 import edu.wpi.cscore.VideoSource;
 
@@ -24,6 +26,7 @@ import edu.wpi.first.wpilibj.DigitalInput;
 
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
@@ -43,7 +46,6 @@ public class Robot extends TimedRobot {
   private Joystick gamepad1;
   private Joystick gamepad2;
   DoubleSolenoid exampleDouble = new DoubleSolenoid(0, 1);
-  DoubleSolenoid exampleDouble2 = new DoubleSolenoid(2, 3);
   SpeedController   collector= new Spark(8);
   SpeedController   hatchHook= new Spark(0);
   WPI_TalonSRX   hatcharm= new WPI_TalonSRX(7);
@@ -51,10 +53,18 @@ public class Robot extends TimedRobot {
   DigitalInput armLimit = new DigitalInput(0);
   DigitalInput hatchLimit = new DigitalInput(1);
   WPI_TalonSRX hab2lift = new WPI_TalonSRX(5);
+  Solenoid   light = new Solenoid(3);
 
   UsbCamera camera1;
   UsbCamera camera2;
   VideoSink server;  
+
+  NetworkTable table;
+
+  public Robot() {
+     table = NetworkTable.getTable("ChickenVision");
+  }
+
   //boolean prevTrigger = false;
 
   boolean forwardIsBackwards = false;
@@ -164,7 +174,6 @@ public class Robot extends TimedRobot {
     camera1.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
     camera2.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
 
-  
   }
   @Override
   public void autonomousInit() {
@@ -177,6 +186,9 @@ public class Robot extends TimedRobot {
   double targetPosHatch = 0;
   boolean resetArm = false;
   boolean resetHatch =false;
+  boolean autoAlign = false;
+  boolean tapeDetected = false;
+  double yaw = 0;
 
   @Override
 
@@ -186,12 +198,29 @@ public class Robot extends TimedRobot {
     if (get2leftbumper()) {
       speed = 0.55;
     }
-    if (forwardIsBackwards) {
-      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed,
-       gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed);
+    if (autoAlign) {
+      //read the yaw and auto line up -- Yaw is positive if we need to turn right
+      tapeDetected = table.getBoolean("tapeDetected",false);
+      if (tapeDetected) {
+        yaw = table.getNumber("tapeYaw",0);
+        double fast = 0.6;
+        double slow = -0.6;
+        if (yaw > 1) { // turn right
+          m_myRobot.tankDrive(fast, slow);
+        }
+        else if (yaw < -1) { // turn left
+          m_myRobot.tankDrive(slow, fast);
+        }
+        else {
+          //m_myRobot.tankDrive(fast, fast);
+        }
+      } else {
+      
+      }
     } else {
       m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
+       tapeDetected = false;
     }
 
     if (get1a()) {
@@ -311,25 +340,33 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
     SmartDashboard.putBoolean("arm limit", !armLimit.get());
     SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
-
+    SmartDashboard.putBoolean("tape Detected", tapeDetected);
+    SmartDashboard.putBoolean("autoAlign", autoAlign);
+    SmartDashboard.putNumber("yaw", yaw);
     
     if (get2rightbumper()) {
-     
+
     }
     // hab2boost
-    if (get2lefttriggervalue()>0.2) {
+    if (get2lefttrigger()) {
       //forwardIsBackwards = false;
-      hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
-
+      //hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
+      light.set(true);
+      autoAlign = true;
+    } else {
+      light.set(false);
+      autoAlign = false;
     }
-    if (get2righttriggervalue()>0.2) {
+    /*
+    if (get2righttrigger()) {
      // forwardIsBackwards = true;
-     hab2lift.set(ControlMode.PercentOutput,-get2righttriggervalue());
-
+     //hab2lift.set(ControlMode.PercentOutput,-get2righttriggervalue());
+     light.set(false);
     }
-    if (get2righttriggervalue() <= 0.2 && get2lefttriggervalue() <= 0.2) {
-      hab2lift.set(ControlMode.PercentOutput,0.0);
-    }
+    if (!get2righttrigger() && !get2lefttrigger()) {
+      //hab2lift.set(ControlMode.PercentOutput,0.0);
+      light.set(false);
+    }*/
     // Hab 2 override
     double yvalue = get2RightY();
     if (gamepad2.getPOV() == 180 && Math.abs(yvalue) > 0.1) {
@@ -349,14 +386,30 @@ public class Robot extends TimedRobot {
     if (get2leftbumper()) {
       speed = 0.55;
     }
-    if (forwardIsBackwards) {
-      m_myRobot.tankDrive( gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed,
-       gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed);
+    if (autoAlign) {
+      //read the yaw and auto line up -- Yaw is positive if we need to turn right
+      tapeDetected = table.getBoolean("tapeDetected",false);
+      if (tapeDetected) {
+        yaw = table.getNumber("tapeYaw",0);
+        double fast = 0.6;
+        double slow = -0.6;
+        if (yaw > 1) { // turn right
+          m_myRobot.tankDrive(fast, slow);
+        }
+        else if (yaw < -1) { // turn left
+          m_myRobot.tankDrive(slow, fast);
+        }
+        else {
+          //m_myRobot.tankDrive(fast, fast);
+        }
+      } else {
+      
+      }
     } else {
       m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
+       tapeDetected = false;
     }
-
     if (get1a()) {
       exampleDouble.set(DoubleSolenoid.Value.kForward);
       hatchEjectOut = true;
@@ -476,25 +529,23 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("hatch limit", !hatchLimit.get());
     SmartDashboard.putBoolean("arm limit", !armLimit.get());
     SmartDashboard.putNumber("DPAD position", gamepad1.getPOV());
+    SmartDashboard.putBoolean("tape Detected", tapeDetected);
+    SmartDashboard.putBoolean("autoAlign", autoAlign);
+    SmartDashboard.putNumber("yaw", yaw);
 
     if (get2rightbumper()) {
     
     }
-    // hab2boost
-    if (get2lefttriggervalue()>0.2) {
-      //forwardIsBackwards = false;
-      hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
-
-    }
-    if (get2righttriggervalue()>0.2) {
-     // forwardIsBackwards = true;
-     hab2lift.set(ControlMode.PercentOutput,-get2righttriggervalue());
-
-    }
-    if (get2righttriggervalue() <= 0.2 && get2lefttriggervalue() <= 0.2) {
-      hab2lift.set(ControlMode.PercentOutput,0.0);
-    }
-
+   // hab2boost
+   if (get2lefttrigger()) {
+    //forwardIsBackwards = false;
+    //hab2lift.set(ControlMode.PercentOutput,get2lefttriggervalue());
+    light.set(true);
+    autoAlign = true;
+  } else {
+      light.set(false);
+      autoAlign = false;
+  }
     // Hab 2 override
     double yvalue = get2RightY();
     if (gamepad2.getPOV() == 180 && Math.abs(yvalue) > 0.1) {
