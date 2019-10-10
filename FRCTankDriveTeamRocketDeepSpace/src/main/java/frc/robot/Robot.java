@@ -10,6 +10,10 @@ package frc.robot;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.PIDController;
+import edu.wpi.first.wpilibj.PIDOutput;
+import edu.wpi.first.wpilibj.PIDSource;
+import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
@@ -61,6 +65,10 @@ public class Robot extends TimedRobot {
 
   NetworkTable table;
 
+  PIDSource tapeError;
+  PIDController alignmentController;
+  PIDOutput alignOutput;
+
   public Robot() {
      table = NetworkTable.getTable("ChickenVision");
   }
@@ -85,6 +93,51 @@ public class Robot extends TimedRobot {
     // joysticks - gamepads
     gamepad1 = new Joystick(0);
     gamepad2 = new Joystick(1);
+
+    // Create a PID source for the auto-alignment
+    tapeError = new PIDSource(){
+    
+      @Override
+      public void setPIDSourceType(PIDSourceType pidSource) {}
+    
+      @Override
+      public double pidGet() {
+        double yaw = 0.0;
+
+        //read the yaw and auto line up -- Yaw is positive if we need to turn right
+        tapeDetected = table.getBoolean("tapeDetected",false);
+        if (tapeDetected) 
+        {
+          yaw = table.getNumber("tapeYaw",0);
+        }
+
+        return yaw;
+      }
+    
+      @Override
+      public PIDSourceType getPIDSourceType() {
+        return null;
+      }
+    };
+
+    // Output to the drivetrain based on alignment with tape
+    alignOutput = new PIDOutput(){
+    
+      @Override
+      public void pidWrite(double output) {
+        m_myRobot.arcadeDrive(0, output);
+      }
+    };
+
+    // Create the PID controller for auto alignment
+    alignmentController = new PIDController(1.0, 0.001, 0.01, tapeError, alignOutput);
+
+    // PID controller settings
+    alignmentController.setAbsoluteTolerance(1.0);  // Being 1.0 off is good enough for now
+    alignmentController.setOutputRange(-1.0, 1.0);  // Robot can only go so fast
+    alignmentController.setContinuous(false);       // The min and max inputs do not wrap around to each other
+    alignmentController.setSetpoint(0.0);           // Our goal is to have 0 error.
+    
     
     // compressor
     //Compressor c = new Compressor(0);
@@ -143,7 +196,7 @@ public class Robot extends TimedRobot {
 		hatcharm.config_kF(Constants.kSlotIdx, Constants.hatchGains.kF, Constants.kTimeoutMs);
 		hatcharm.config_kP(Constants.kSlotIdx, Constants.hatchGains.kP, Constants.kTimeoutMs);
 		hatcharm.config_kI(Constants.kSlotIdx, Constants.hatchGains.kI, Constants.kTimeoutMs);
-		hatcharm.config_kD(Constants.kSlotIdx, Constants.hatchGains.kD, Constants.kTimeoutMs);
+    hatcharm.config_kD(Constants.kSlotIdx, Constants.hatchGains.kD, Constants.kTimeoutMs);
 
 		/* Set acceleration and vcruise velocity - see documentation */
 		roboarm.configMotionCruiseVelocity(15000, Constants.kTimeoutMs);
@@ -199,25 +252,10 @@ public class Robot extends TimedRobot {
       speed = 0.55;
     }
     if (autoAlign) {
-      //read the yaw and auto line up -- Yaw is positive if we need to turn right
-      tapeDetected = table.getBoolean("tapeDetected",false);
-      if (tapeDetected) {
-        yaw = table.getNumber("tapeYaw",0);
-        double fast = 0.6;
-        double slow = -0.6;
-        if (yaw > 1) { // turn right
-          m_myRobot.tankDrive(fast, slow);
-        }
-        else if (yaw < -1) { // turn left
-          m_myRobot.tankDrive(slow, fast);
-        }
-        else {
-          //m_myRobot.tankDrive(fast, fast);
-        }
-      } else {
-      
-      }
-    } else {
+      autoAlignment(true);
+    } 
+    else {
+      autoAlignment(false);
       m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
        tapeDetected = false;
@@ -343,6 +381,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("tape Detected", tapeDetected);
     SmartDashboard.putBoolean("autoAlign", autoAlign);
     SmartDashboard.putNumber("yaw", yaw);
+    SmartDashboard.putData("Alignment PID", alignmentController);
     
     if (get2rightbumper()) {
 
@@ -387,25 +426,9 @@ public class Robot extends TimedRobot {
       speed = 0.55;
     }
     if (autoAlign) {
-      //read the yaw and auto line up -- Yaw is positive if we need to turn right
-      tapeDetected = table.getBoolean("tapeDetected",false);
-      if (tapeDetected) {
-        yaw = table.getNumber("tapeYaw",0);
-        double fast = 0.6;
-        double slow = -0.6;
-        if (yaw > 1) { // turn right
-          m_myRobot.tankDrive(fast, slow);
-        }
-        else if (yaw < -1) { // turn left
-          m_myRobot.tankDrive(slow, fast);
-        }
-        else {
-          //m_myRobot.tankDrive(fast, fast);
-        }
-      } else {
-      
-      }
+      autoAlignment(true);
     } else {
+      autoAlignment(false);
       m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*speed,
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
        tapeDetected = false;
@@ -629,5 +652,20 @@ public class Robot extends TimedRobot {
   }
   public boolean get2y() {
     return (gamepad2.getRawButton(4));
+  }
+
+  /**
+   * Enable or disable the alignment controller as requested, but only do it once.
+   */
+  private void autoAlignment(boolean enabled)
+  {
+    if(alignmentController.isEnabled() && !enabled)
+    {
+      alignmentController.disable();
+    }
+    else if (!alignmentController.isEnabled() && enabled)
+    {
+      alignmentController.enable();
+    }
   }
 }
