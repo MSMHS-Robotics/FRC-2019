@@ -130,7 +130,11 @@ public class Robot extends TimedRobot {
     };
 
     // Create the PID controller for auto alignment
-    alignmentController = new PIDController(1.0, 0.001, 0.01, tapeError, alignOutput);
+    alignmentController = new PIDController(Constants.alignmentGains.kP, 
+                                            Constants.alignmentGains.kI, 
+                                            Constants.alignmentGains.kD, 
+                                            tapeError, 
+                                            alignOutput);
 
     // PID controller settings
     alignmentController.setAbsoluteTolerance(1.0);  // Being 1.0 off is good enough for now

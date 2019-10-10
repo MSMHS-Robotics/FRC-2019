@@ -37,4 +37,10 @@ public class Constants {
      */
 	static final Gains kGains = new Gains(0.5, 0.0, 0.0, 0.2, 0, 0.5);
 	static final Gains hatchGains = new Gains(0.4, 0.0, 0.0, 0.2, 0, 0.5);
+
+
+	/**
+	 * Gains used for aligning to the tape automatically
+	 */
+	static final Gains alignmentGains = new Gains(0.5, 0.0, 0.0, 0.0, 0, 0.6);
 }
