@@ -255,6 +255,7 @@ public class Robot extends TimedRobot {
       speed = 0.55;
     }
     if (autoAlign) {
+      tapeDetected = table.getBoolean("tapeDetected",false);
       autoAlignment(true);
     } 
     else {
@@ -429,6 +430,7 @@ public class Robot extends TimedRobot {
       speed = 0.55;
     }
     if (autoAlign) {
+      tapeDetected = table.getBoolean("tapeDetected",false);
       autoAlignment(true);
     } else {
       autoAlignment(false);
