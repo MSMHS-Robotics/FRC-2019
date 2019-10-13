@@ -105,8 +105,7 @@ public class Robot extends TimedRobot {
         double yaw = 0.0;
 
         //read the yaw and auto line up -- Yaw is positive if we need to turn right
-        tapeDetected = table.getBoolean("tapeDetected",false);
-        if (tapeDetected) 
+        if (table.getBoolean("tapeDetected",false)) 
         {
           yaw = table.getNumber("tapeYaw",0);
         }
