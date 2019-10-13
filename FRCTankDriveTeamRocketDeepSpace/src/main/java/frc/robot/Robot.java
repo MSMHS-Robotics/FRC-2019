@@ -133,7 +133,8 @@ public class Robot extends TimedRobot {
                                             Constants.alignmentGains.kI, 
                                             Constants.alignmentGains.kD, 
                                             tapeError, 
-                                            alignOutput);
+                                            alignOutput,
+                                            0.01);
 
     // PID controller settings
     alignmentController.setAbsoluteTolerance(1.0);  // Being 1.0 off is good enough for now
