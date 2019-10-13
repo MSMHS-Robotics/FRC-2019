@@ -115,7 +115,7 @@ public class Robot extends TimedRobot {
     
       @Override
       public PIDSourceType getPIDSourceType() {
-        return null;
+        return PIDSourceType.kDisplacement;
       }
     };
 
