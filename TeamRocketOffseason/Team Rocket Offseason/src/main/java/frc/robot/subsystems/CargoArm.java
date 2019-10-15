@@ -8,17 +8,39 @@
 package frc.robot.subsystems;
 
 import edu.wpi.first.wpilibj.command.Subsystem;
+import edu.wpi.first.wpilibj.*;
+import edu.wpi.first.wpilibj.command.PIDSubsystem;
 
-/**
- * An example subsystem.  You can replace me with your own Subsystem.
- */
-public class ExampleSubsystem extends Subsystem {
-  // Put methods for controlling this subsystem
-  // here. Call these from Commands.
+public class CargoArm extends PIDSubsystem {
+
+  public CargoArm(){
+    super("CargoArm",1.0,0.0,0.0);
+  }
+
+  public void initDefaultCommand() {
+  }
+
+
+  public void pickup(){
+
+  }
+
+  public void score(){
+
+  }
+
+  public void rest(){
+    
+  }
 
   @Override
-  public void initDefaultCommand() {
-    // Set the default command for a subsystem here.
-    // setDefaultCommand(new MySpecialCommand());
+  protected double returnPIDInput() {
+    return 0;
+  }
+
+  @Override
+  protected void usePIDOutput(double output) {
+
   }
 }
+
