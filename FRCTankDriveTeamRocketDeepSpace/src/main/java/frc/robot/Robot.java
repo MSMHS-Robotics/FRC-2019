@@ -77,6 +77,7 @@ public class Robot extends TimedRobot {
 
   boolean forwardIsBackwards = false;
   boolean hatchEjectOut = false;
+  boolean buttonAFlag = false;
 
   @Override
   public void robotInit() {
@@ -105,8 +106,7 @@ public class Robot extends TimedRobot {
         double yaw = 0.0;
 
         //read the yaw and auto line up -- Yaw is positive if we need to turn right
-        tapeDetected = table.getBoolean("tapeDetected",false);
-        if (tapeDetected) 
+        if (table.getBoolean("tapeDetected",false)) 
         {
           yaw = table.getNumber("tapeYaw",0);
         }
@@ -116,7 +116,7 @@ public class Robot extends TimedRobot {
     
       @Override
       public PIDSourceType getPIDSourceType() {
-        return null;
+        return PIDSourceType.kDisplacement;
       }
     };
 
@@ -125,7 +125,8 @@ public class Robot extends TimedRobot {
     
       @Override
       public void pidWrite(double output) {
-        m_myRobot.arcadeDrive(0, output);
+        m_myRobot.arcadeDrive(-Math.pow(gamepad1.getRawAxis(1), 3)*0.8, -output);
+        //m_myRobot.tankDrive(0.4-output, 0.4+output);
       }
     };
 
@@ -134,10 +135,11 @@ public class Robot extends TimedRobot {
                                             Constants.alignmentGains.kI, 
                                             Constants.alignmentGains.kD, 
                                             tapeError, 
-                                            alignOutput);
+                                            alignOutput,
+                                            0.01);
 
     // PID controller settings
-    alignmentController.setAbsoluteTolerance(1.0);  // Being 1.0 off is good enough for now
+    alignmentController.setAbsoluteTolerance(0);  // Being 0 off is good enough for now. PERFECTION!
     alignmentController.setOutputRange(-1.0, 1.0);  // Robot can only go so fast
     alignmentController.setContinuous(false);       // The min and max inputs do not wrap around to each other
     alignmentController.setSetpoint(0.0);           // Our goal is to have 0 error.
@@ -251,11 +253,13 @@ public class Robot extends TimedRobot {
 
   public void autonomousPeriodic() {
     //Slow Speed for lining up
-    double speed = 1.0;
+    //double speed = 1.0;
+    double speed = 0.8;
     if (get2leftbumper()) {
       speed = 0.55;
     }
     if (autoAlign) {
+      //tapeDetected = table.getBoolean("tapeDetected",false);
       autoAlignment(true);
     } 
     else {
@@ -264,19 +268,14 @@ public class Robot extends TimedRobot {
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
        tapeDetected = false;
     }
-
-    if (get1a()) {
-      exampleDouble.set(DoubleSolenoid.Value.kForward);
-      hatchEjectOut = true;
-    }
+    
+    // Controls the pistons for the hatch panel to be ejected
+    hatchEjectLogic();
+    
     if (get1b()) {
-      exampleDouble.set(DoubleSolenoid.Value.kReverse);
-      hatchEjectOut = true;
+     creepForward();
     }
-    if (!get1a() && !get1b())
-    {
-      exampleDouble.set(DoubleSolenoid.Value.kOff);
-    }
+
     if (get1x()) {
       hatchHook.set(1);
     }
@@ -386,7 +385,8 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("autoAlign", autoAlign);
     SmartDashboard.putNumber("yaw", yaw);
     SmartDashboard.putData("Alignment PID", alignmentController);
-    
+    SmartDashboard.putData("drivetrain", m_myRobot);
+
     if (get2rightbumper()) {
 
     }
@@ -430,6 +430,7 @@ public class Robot extends TimedRobot {
       speed = 0.55;
     }
     if (autoAlign) {
+      //tapeDetected = table.getBoolean("tapeDetected",false);
       autoAlignment(true);
     } else {
       autoAlignment(false);
@@ -437,18 +438,13 @@ public class Robot extends TimedRobot {
        -gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*gamepad1.getRawAxis(5)*speed);
        tapeDetected = false;
     }
-    if (get1a()) {
-      exampleDouble.set(DoubleSolenoid.Value.kForward);
-      hatchEjectOut = true;
-    }
+     // Controls the pistons for the hatch panel to be ejected
+     hatchEjectLogic();
+
     if (get1b()) {
-      exampleDouble.set(DoubleSolenoid.Value.kReverse);
-      hatchEjectOut = false;
+     creepForward();
     }
-    if (!get1a() && !get1b())
-    {
-      exampleDouble.set(DoubleSolenoid.Value.kOff);
-    }
+    
     if (get1x()) {
       hatchHook.set(1);
     }
@@ -666,10 +662,34 @@ public class Robot extends TimedRobot {
     if(alignmentController.isEnabled() && !enabled)
     {
       alignmentController.disable();
+      //alignmentController.reset();
     }
     else if (!alignmentController.isEnabled() && enabled)
     {
       alignmentController.enable();
+    }
+  }
+
+  private void creepForward(){
+    m_myRobot.tankDrive(-gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*0.5,
+    -gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*gamepad1.getRawAxis(1)*0.5);
+  }
+
+  private void hatchEjectLogic(){
+    if (get1a()){
+      if (hatchEjectOut && !buttonAFlag){
+        exampleDouble.set(DoubleSolenoid.Value.kReverse);
+        hatchEjectOut = false;
+      }
+      else if (!buttonAFlag) {
+        exampleDouble.set(DoubleSolenoid.Value.kForward);
+        hatchEjectOut = true;
+      }
+      buttonAFlag = true;
+    }
+    else{
+      exampleDouble.set(DoubleSolenoid.Value.kOff);
+      buttonAFlag = false;
     }
   }
 }

@@ -42,5 +42,5 @@ public class Constants {
 	/**
 	 * Gains used for aligning to the tape automatically
 	 */
-	static final Gains alignmentGains = new Gains(0.5, 0.0, 0.0, 0.0, 0, 0.6);
+	static final Gains alignmentGains = new Gains(0.125, 0.0008, 0.1, 0.0, 0, 0.6);
 }
