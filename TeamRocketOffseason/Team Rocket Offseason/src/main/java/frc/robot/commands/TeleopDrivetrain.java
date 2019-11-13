@@ -1,9 +1,14 @@
+package frc.robot.commands;
 
+import edu.wpi.first.wpilibj.command.Command;
+import frc.robot.Robot;
 
-public class DriveWithJoysticks extends Command {
+public class TeleopDrivetrain extends Command {
 
-    public DriveWithJoysticks() {
-    	requires(drivetrain);// drivetrain is an instance of our Drivetrain subsystem
+    public TeleopDrivetrain() {
+        super("TeleopDrivetrain");
+        requires(Robot.drivetrain);
+       // drivetrain is an instance of our Drivetrain subsystem
     }
 
     protected void initialize() {
@@ -15,7 +20,7 @@ public class DriveWithJoysticks extends Command {
      * (for example, if we want the joysticks to be less sensitive, we can multiply them by .5 in the getLeftSpeed method and leave our command the same).
      */
     protected void execute() {
-    	drivetrain.tankDrive(oi.getLeftSpeed(), oi.getRightSpeed());
+    	Robot.drivetrain.tankDrive(Robot.oi.getLeftSpeed(), Robot.oi.getRightSpeed());
     }
 
     /*

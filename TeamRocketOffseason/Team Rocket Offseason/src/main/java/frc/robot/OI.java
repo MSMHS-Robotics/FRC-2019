@@ -22,6 +22,14 @@ public class OI {
   // number it is.
   Joystick driverJoystick = new Joystick(0);
   
+  public double getLeftSpeed(){
+    return driverJoystick.getRawAxis(1);
+  }
+
+  public double getRightSpeed(){
+    return driverJoystick.getRawAxis(5);
+  }
+
   //Button button = new JoystickButton(driverJoystick, buttonNumber);
 
   // There are a few additional built in buttons you can use. Additionally,
